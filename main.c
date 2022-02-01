@@ -3,9 +3,6 @@
 #include <sys/ioctl.h>
 #include <termios.h>
 
-// #define MAP_WIDTH 100
-// #define MAP_HEIGHT 30
-
 typedef enum {
 // EMPTY,
   FLOOR, // floor is now going to be the default
@@ -57,6 +54,15 @@ typedef struct {
   offset last_offset;
   map *map;
 } screen;
+
+
+typedef enum {
+  UP,
+  DOWN,
+  LEFT,
+  RIGHT,
+  NO_DOOR
+} door_pos;
 
 char *message = "\033[34m<j> to move down, <k> to move up, <h> to move left, <l> to move right, <Q> to quit\033[0m";
 
@@ -126,6 +132,33 @@ void map_fill(map *m, surrounding s, int x, int y, int width, int height) {
       map_set_surrounding(m, j, i, s);
 }
 
+void map_draw_room(map *m, surrounding s, int x, int y, int width, int height, door_pos *d) {
+  map_fill(m, s, x, y, width, 1);
+  map_fill(m, s, x, y, 1, height);
+  map_fill(m, s, x + width - 1, y, 1, height);
+  map_fill(m, s, x, y + height - 1, width, 1);
+  switch (*d) {
+    case UP:
+      map_set_surrounding(m, x + width / 2, y, FLOOR);
+      break;
+    case DOWN:
+      map_set_surrounding(m, x + width / 2, y + height - 1, FLOOR);
+      break;
+    case LEFT:
+      map_set_surrounding(m, x, y + height / 2, FLOOR);
+      break;
+    case RIGHT:
+      map_set_surrounding(m, x + width - 1, y + height / 2, FLOOR);
+      break;
+    case NO_DOOR:
+      break;
+  }
+}
+
+void generate_walls(map *m) {
+  // It takes a wall and procedurally generates a wall around it
+}
+
 map *map_create(int width, int height, surrounding default_surrounding) {
   map *m = malloc(sizeof(map));
 
@@ -141,6 +174,8 @@ map *map_create(int width, int height, surrounding default_surrounding) {
   // add the player at the center cell of the map
   map_set_being(m, width / 2, height / 2, PLAYER);
 
+  generate_walls(m);
+
   return m;
 }
 
@@ -155,7 +190,7 @@ void update_player_position(screen *s, int x, int y) {
 
   if (check_map_border_collision(s, x, y) ||
       map_get(s->map, x, y).surrounding == WALL) {
-    message = "Fuck limits!";
+    message = "Hit!";
     s->offset = s->last_offset;
     return;
   }
@@ -239,6 +274,8 @@ void screen_handle_input(screen *s) {
       screen_move(s, 1, 0);
       break;
     case 'Q':
+      // Clear screen & put the cursor at the top left
+      printf("\033[2J\033[0;0H");
       exit(0);
       break;
   }
@@ -270,7 +307,11 @@ int main() {
   screen = screen_create(map, size.ws_col, size.ws_row - 1);
 
   // create a wall
-  map_fill(map, WALL, 5, 5, 10, 1);
+  // map_fill(map, WALL, 5, 5, 10, 1);
+
+
+  door_pos d = RIGHT;
+  map_draw_room(map, WALL, 10, 10, 10, 10, &d);
 
   play(screen);
 

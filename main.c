@@ -3,6 +3,13 @@
 #include <sys/ioctl.h>
 #include <termios.h>
 
+#define MAP_FACTOR 2
+#define AMOUNT_OF_ROOMS 50
+#define ROOM_MAX 15
+
+#define MIN(a, b) ((a) < (b) ? (a) : (b))
+#define MAX(a, b) ((a) > (b) ? (a) : (b))
+
 typedef enum {
 // EMPTY,
   FLOOR, // floor is now going to be the default
@@ -155,8 +162,30 @@ void map_draw_room(map *m, surrounding s, int x, int y, int width, int height, d
   }
 }
 
-void generate_walls(map *m) {
-  // It takes a wall and procedurally generates a wall around it
+void generate_rooms(map *m, int n) {
+  // Procedurally generates a bunch of rooms like a maze on the map
+  // it uses map_draw_room
+
+  // set seed
+  srand(time(NULL));
+
+  // Steps:
+  // 1. Bruteforce an amount n of rooms that don't overlap
+  // 2. For each room, pick a random door position
+  // 3. Draw each room
+  // 4. Draw a corridor between the rooms
+  // 5. Repeat until n rooms are drawn
+
+  int rooms_drawn = 0;
+  while (rooms_drawn < n) {
+    door_pos d = rand() % 3 + 1;
+    int x = rand() % (m->width - 2) + 1;
+    int y = rand() % (m->height - 2) + 1;
+    int width = rand() % MIN(ROOM_MAX, m->width - x - 2) + 3;
+    int height = rand() % MIN(ROOM_MAX, m->height - y - 2) + 3;
+    map_draw_room(m, WALL, x, y, width, height, &d);
+    rooms_drawn++;
+  }
 }
 
 map *map_create(int width, int height, surrounding default_surrounding) {
@@ -172,9 +201,10 @@ map *map_create(int width, int height, surrounding default_surrounding) {
   map_fill(m, default_surrounding, 0, 0, width, height);
 
   // add the player at the center cell of the map
-  map_set_being(m, width / 2, height / 2, PLAYER);
+  map_set_being(m, width / 2, height / 2, (being *) PLAYER);
 
-  generate_walls(m);
+  // procedurally generate rooms
+  generate_rooms(m, AMOUNT_OF_ROOMS);
 
   return m;
 }
@@ -202,7 +232,7 @@ void update_player_position(screen *s, int x, int y) {
 
   // add the player to the new position if it's not outside the map
   if (x >= 0 && x < s->map->width && y >= 0 && y < s->map->height)
-    map_set_being(s->map, x, y, PLAYER);
+    map_set_being(s->map, x, y, (being *) PLAYER);
 
 }
 
@@ -303,15 +333,11 @@ int main() {
   struct winsize size;
   ioctl(0, TIOCGWINSZ, (char *) &size);
 
-  map = map_create(size.ws_col, size.ws_row, FLOOR);
+  map = map_create(size.ws_col * MAP_FACTOR, size.ws_row * MAP_FACTOR, FLOOR);
   screen = screen_create(map, size.ws_col, size.ws_row - 1);
 
   // create a wall
   // map_fill(map, WALL, 5, 5, 10, 1);
-
-
-  door_pos d = RIGHT;
-  map_draw_room(map, WALL, 10, 10, 10, 10, &d);
 
   play(screen);
 
